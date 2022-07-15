@@ -3,10 +3,10 @@
 #include "photoresistor.h"
 #include "led.h"
 #include "Arduino.h"
+#include "constants.h"
 
 unsigned long currentBrightnessDuration = 0;
 unsigned int currentBrightness = 0;
-const long intervalBeforeDoSomething = 2000; // 120 secondes
 
 void setup()
 {
@@ -21,6 +21,7 @@ void loop()
   if (door.IS_ERROR())
   {
     Serial.println("ERROR");
+    led.BLINK(250);
     return;
   }
 
@@ -30,19 +31,21 @@ void loop()
     unsigned long currentMillis = millis();
 
     int reading = photoresistor.READ();
-
+    Serial.print("analogRead reading: ");
+    Serial.println(reading);
     switch (reading)
     {
-    case pclass::BRIGHT:
+    case pclass::MEDIUM:
 
       if (door.IS_CLOSED() == true)
       {
-        if (currentBrightness != pclass::BRIGHT)
+        if (currentBrightness != pclass::MEDIUM)
         {
+          currentBrightness = reading;
           currentBrightnessDuration = currentMillis;
           break;
         }
-        if (currentMillis - currentBrightnessDuration >= intervalBeforeDoSomething)
+        if (currentMillis - currentBrightnessDuration >= INTERVAL_BEFORE_DO_SOMETHING)
         {
           door.OPEN();
         }
@@ -53,19 +56,19 @@ void loop()
       {
         if (currentBrightness != pclass::DARK)
         {
+          currentBrightness = reading;
           currentBrightnessDuration = currentMillis;
           break;
         }
-        if (currentMillis - currentBrightnessDuration >= intervalBeforeDoSomething)
+        if (currentMillis - currentBrightnessDuration >= INTERVAL_BEFORE_DO_SOMETHING)
         {
           door.CLOSE();
         }
       }
       break;
     }
-    currentBrightness = reading;
   }
-  delay(250);
+  delay(125);
 }
 
 void loadSetups()
@@ -75,5 +78,5 @@ void loadSetups()
   door.SETUP();
   buttons.SETUP();
 
-  door.STOP();
+  door.INITIALIZE();
 }

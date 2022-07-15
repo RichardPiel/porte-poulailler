@@ -1,6 +1,8 @@
 #include "door.h"
 #include "Arduino.h"
 #include "constants.h"
+#include "led.h"
+#include "motor.h"
 
 int doorPosition = 2; // 0 = unknow; 1 = top; 2 = down
 int doorIsMoving = 0; // 0 = stop; 1 = top; 2 = down
@@ -13,8 +15,7 @@ dclass::dclass()
 void dclass::SETUP()
 {
   Serial.println("SETUP DOOR");
-  pinMode(MOTOR_SPEED_CONTROL_PIN, OUTPUT);
-  pinMode(MOTOR_DIRECTION_CONTROL_PIN, OUTPUT);
+
   pinMode(END_STOP_TOP, INPUT_PULLUP);
   pinMode(END_STOP_BOTTOM, INPUT_PULLUP);
 }
@@ -22,7 +23,7 @@ void dclass::SETUP()
 void dclass::STOP()
 {
   Serial.println("STOP DOOR");
-  digitalWrite(MOTOR_SPEED_CONTROL_PIN, LOW);
+  motor.STOP();
   doorIsMoving = 0;
 }
 
@@ -33,22 +34,26 @@ void dclass::OPEN()
   if (!dclass::IS_MOVING() && doorPosition != 1)
   {
     doorIsMoving = 1;
-    analogWrite(MOTOR_SPEED_CONTROL_PIN, 255);
-    digitalWrite(MOTOR_DIRECTION_CONTROL_PIN, HIGH);
+    motor.UP();
     long startTime = millis();
+    dclass::WAIT_FOR_OPENING(startTime);
+
     while (dclass::IS_CLOSED())
     {
+      led.BLINK(500);
 
       if (digitalRead(END_STOP_TOP) == LOW)
       {
         Serial.println("Endstop top");
-        dclass::STOP();
+        motor.STOP();
         doorPosition = 1;
+        led.START();
+
         break;
       }
-      
+
       dclass::FAILSAFE(startTime);
-      delay(100);
+      delay(250);
     }
   }
 }
@@ -60,21 +65,25 @@ void dclass::CLOSE()
   if (!dclass::IS_MOVING() && doorPosition != 2)
   {
     doorIsMoving = 2;
-    analogWrite(MOTOR_SPEED_CONTROL_PIN, 255);
-    digitalWrite(MOTOR_DIRECTION_CONTROL_PIN, LOW);
+    motor.DOWN();
+
     long startTime = millis();
+    dclass::WAIT_FOR_CLOSENING(startTime);
     while (dclass::IS_OPENED())
     {
+      led.BLINK(500);
+
       if (digitalRead(END_STOP_BOTTOM) == LOW)
       {
         Serial.println("Endstop bottom");
-        dclass::STOP();
+        motor.STOP();
         doorPosition = 2;
+        led.STOP();
         break;
       }
       dclass::FAILSAFE(startTime);
 
-      delay(100);
+      delay(250);
     }
   }
 }
@@ -85,12 +94,58 @@ void dclass::FAILSAFE(long startTime)
   if (currentTime - startTime > MAX_ACTION_DURATION)
   {
     Serial.println("Auto break");
-    dclass::STOP();
+    motor.STOP();
     doorPosition = 0; // inconnu
     error = true;
   }
 }
 
+/** @brief Permet de déterminer la position
+ * initiale de la porte au démarrage
+ */
+void dclass::INITIALIZE()
+{
+
+  // La porte est en bas
+  if (digitalRead(END_STOP_BOTTOM) == LOW)
+  {
+    Serial.println("Door is down");
+    doorPosition = 2;
+  }
+  // La porte est en haut
+  else if (digitalRead(END_STOP_TOP) == LOW)
+  {
+    Serial.println("Door is up");
+
+    doorPosition = 1;
+  }
+  // La porte est en position inconnue
+  else
+  {
+    doorPosition = 0;
+    Serial.println("Door is unknown");
+  }
+}
+
+void dclass::WAIT_FOR_OPENING(long startTime)
+{
+  while (digitalRead(END_STOP_BOTTOM) == LOW)
+  {
+    dclass::FAILSAFE(startTime);
+    delay(100);
+  }
+  return;
+}
+
+void dclass::WAIT_FOR_CLOSENING(long startTime)
+{
+  while (digitalRead(END_STOP_TOP) == LOW)
+  {
+    dclass::FAILSAFE(startTime);
+    delay(100);
+  }
+  return;
+}
 
 bool dclass::IS_MOVING()
 {

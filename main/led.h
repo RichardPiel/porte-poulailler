@@ -4,7 +4,9 @@ class lclass {
     public:
         lclass();
         void SETUP();
-        void BLINK();
+        void START();
+        void STOP();
+        void BLINK(long interval);
 };
 
 extern lclass led;
